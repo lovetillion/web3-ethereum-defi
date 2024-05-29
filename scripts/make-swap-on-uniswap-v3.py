@@ -28,7 +28,7 @@ To run:
 
 .. code-block:: shell
 
-    export JSON_RPC_POLYGON="https://polygon-rpc.com"
+    export JSON_RPC_ARBITRUM="https://arb1.arbitrum.io/rpc"
     export PRIVATE_KEY="your private key here"
     python scripts/make-swap-on-uniwap-v3.py
 
@@ -58,18 +58,18 @@ from eth_defi.uniswap_v3.swap import swap_with_slippage_protection
 #
 # For quote terminology see https://tradingstrategy.ai/glossary/quote-token
 #
-QUOTE_TOKEN_ADDRESS = "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"  # USDC (native)
+QUOTE_TOKEN_ADDRESS = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"  # WETH
 
 # The address of a token we are going to receive
 #
 # Use https://tradingstrategy.ai/search to find your token
 #
 # For base terminology see https://tradingstrategy.ai/glossary/base-token
-BASE_TOKEN_ADDRESS = "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619"  # WETH
+BASE_TOKEN_ADDRESS = "0x517673B4B3298b411a878CD9F5EDefb59b61BFDb"  # XLV
 
 
 # Connect to JSON-RPC node
-rpc_env_var_name = "JSON_RPC_POLYGON"
+rpc_env_var_name = "JSON_RPC_ARBITRUM"
 json_rpc_url = os.environ.get(rpc_env_var_name)
 assert json_rpc_url, f"You need to give {rpc_env_var_name} node URL. Check ethereumnodes.com for options"
 
@@ -83,9 +83,9 @@ web3 = create_multi_provider_web3(json_rpc_url)
 
 print(f"Connected to blockchain, chain id is {web3.eth.chain_id}. the latest block is {web3.eth.block_number:,}")
 
-# Grab Uniswap v3 smart contract addreses for Polygon.
+# Grab Uniswap v3 smart contract addreses for Arbitrum.
 #
-deployment_data = UNISWAP_V3_DEPLOYMENTS["polygon"]
+deployment_data = UNISWAP_V3_DEPLOYMENTS["arbitrum"]
 uniswap_v3 = fetch_deployment(
     web3,
     factory_address=deployment_data["factory"],
@@ -153,7 +153,7 @@ approve = quote.contract.functions.approve(uniswap_v3.swap_router.address, raw_a
 tx_1 = approve.build_transaction(
     {
         # approve() may take more than 500,000 gas on Arbitrum One
-        "gas": 850_000,
+        "gas": 500_000,
         "from": my_address,
     }
 )
@@ -181,10 +181,10 @@ bound_solidity_func = swap_with_slippage_protection(
     uniswap_v3,
     base_token=base,
     quote_token=quote,
-    max_slippage=20,  # Allow 20 BPS slippage before tx reverts
+    max_slippage=9000,  # Allow 20 BPS slippage before tx reverts
     amount_in=raw_amount,
     recipient_address=my_address,
-    pool_fees=[500],   # 5 BPS pool WETH-USDC
+    pool_fees=[3000],   # 5 BPS pool WETH-USDC
 )
 
 tx_2 = bound_solidity_func.build_transaction(
@@ -199,6 +199,12 @@ tx_2 = bound_solidity_func.build_transaction(
     }
 )
 
+# temporary manual nonce due to race condition with extra debug output
+tx_1['nonce'] = 29
+tx_2['nonce'] = 30
+print( tx_1 )
+print( tx_2 )
+
 # Sign and broadcast the transaction using our private key
 tx_hash_1 = web3.eth.send_transaction(tx_1)
 tx_hash_2 = web3.eth.send_transaction(tx_2)
@@ -209,7 +215,7 @@ tx_hash_2 = web3.eth.send_transaction(tx_2)
 # whether the transaction completed or not.
 tx_wait_minutes = 2.5
 print(f"Broadcasted transactions {tx_hash_1.hex()}, {tx_hash_2.hex()}, now waiting {tx_wait_minutes} minutes for it to be included in a new block")
-print(f"View your transactions confirming at https://polygonscan/address/{my_address}")
+print(f"View your transactions confirming at https://arbiscan.io/address/{my_address}")
 receipts = wait_transactions_to_complete(
     web3,
     [tx_hash_1, tx_hash_2],
